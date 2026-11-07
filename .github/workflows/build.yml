@@ -17,6 +17,7 @@ jobs:
           java-version: 17
       - run: mkdir -p ~/.android && cp debug.keystore ~/.android/debug.keystore
       - run: npm install
+      - run: cp node_modules/@capacitor/core/dist/capacitor.js www/capacitor.js && cp node_modules/@capacitor/filesystem/dist/plugin.js www/filesystem.js && cp node_modules/@capacitor/share/dist/plugin.js www/share.js
       - run: npx cap add android
       - run: npx cap sync android
       - run: chmod +x gradlew && ./gradlew assembleDebug
