@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Վաճառքի մատյան</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3f6f4;--card:#fff;--ink:#16302b;--mute:#5d716c;--line:#d9e2de;--accent:#0b7a63;--accent-ink:#fff;--warn:#b4491f;--bar:#0b7a63;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a18;--card:#17262a;--ink:#e6f0ec;--mute:#93a8a2;--line:#27403b;--accent:#3fc7a5;--accent-ink:#06231c;--warn:#f0905f;--bar:#3fc7a5;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1a18;--card:#17262a;--ink:#e6f0ec;--mute:#93a8a2;--line:#27403b;--accent:#3fc7a5;--accent-ink:#06231c;--warn:#f0905f;--bar:#3fc7a5;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans Armenian",system-ui,sans-serif;padding-bottom:84px}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:22px;font-weight:800;margin:4px 0 14px}
+h2{font-size:17px;font-weight:600;margin:20px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 120px}
+label{display:block;font-size:13px;color:var(--mute);margin-bottom:2px}
+input,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 14px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+button.ghost{background:transparent;color:var(--mute);border:1px solid var(--line);padding:6px 10px;font-weight:400}
+.item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item small{color:var(--mute);display:block}
+.amt{font-weight:800;white-space:nowrap}
+.low{color:var(--warn);font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.stat b{display:block;font-size:17px}
+.stat span{font-size:12px;color:var(--mute)}
+.empty{color:var(--mute);padding:8px 0}
+.scroll{overflow-x:auto}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));z-index:5}
+nav button{flex:1;background:none;color:var(--mute);font-size:13px;padding:8px 2px;font-weight:400}
+nav button.on{color:var(--accent);font-weight:800}
+svg text{fill:var(--mute);font-size:9px;font-family:inherit}
+.qty{width:84px;flex:none}
+details>summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;list-style:none}
+details>summary small{color:var(--mute);display:block}
+details>summary::-webkit-details-marker{display:none}
+details[open]>summary{margin-bottom:10px}
+details .card{background:var(--bg)}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<nav id="nav"></nav>
+<script>
+var KEY="sales-app-v1",tab="sales",S={products:[],customers:[],sales:[]};
+try{var raw=localStorage.getItem(KEY);if(raw)S=JSON.parse(raw)}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+var $=function(i){return document.getElementById(i)};
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function fmt(n){return Math.round(n).toLocaleString("ru-RU")+" ֏"}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function dkey(d){d=new Date(d);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function dshow(d){d=new Date(d);return String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0")}
+function prod(id){return S.products.find(function(p){return p.id===id})}
+var TABS=[["sales","Վաճառք"],["customers","Հաճախորդներ"],["stock","Պաշար"],["report","Հաշվետվություն"]];
+function go(t){tab=t;render()}
+function render(){
+ $("nav").innerHTML=TABS.map(function(t){return '<button class="'+(t[0]===tab?"on":"")+'" onclick="go(\''+t[0]+'\')">'+t[1]+'</button>'}).join("");
+ $("app").innerHTML=({sales:vSales,customers:vCust,stock:vStock,report:vReport})[tab]();
+ window.scrollTo(0,0);
+}
+var orderCid=null;
+function cats(){var o={};S.products.forEach(function(p){var c=p.cat||"Ընդհանուր";(o[c]=o[c]||[]).push(p)});return o}
+function groupOrders(list){var m={},a=[];list.forEach(function(s){var k=s.oid||s.id;if(!m[k]){m[k]={id:k,date:s.date,cname:s.cname,items:[]};a.push(m[k])}m[k].items.push(s)});return a}
+function ordersHTML(list,showC,limit){
+ var g=groupOrders(list).slice(0,limit||40);
+ if(!g.length)return '<div class="empty">Պատվերներ դեռ չկան։</div>';
+ return g.map(function(o){var q=0,t=0;o.items.forEach(function(s){q+=s.qty;t+=s.qty*s.price});
+  return '<div class="card"><div class="item"><div><b>'+dshow(o.date)+(showC&&o.cname?" · "+esc(o.cname):"")+'</b><small>Պատվերի քանակը՝ '+q+' հատ</small></div><div><span class="amt">'+fmt(t)+'</span> <button class="ghost" onclick="delOrder(\''+o.id+'\')">Ջնջել</button></div></div>'
+  +o.items.map(function(s){return '<div class="item"><div>'+esc(s.name)+'</div><div>'+s.qty+' × '+fmt(s.price)+'</div></div>'}).join("")+'</div>'}).join("");
+}
+function vSales(){
+ var h="<h1>Նոր պատվեր</h1>";
+ if(!S.products.length)return h+'<div class="card empty">Սկզբում «Պաշար» բաժնում ավելացրեք ապրանքներ։</div>';
+ orderCid=null;
+ h+='<div class="card"><label>Հաճախորդ</label><select id="sc" onchange="setCust(this.value)"><option value="__">Ընտրեք հաճախորդին…</option><option value="">Առանց հաճախորդի</option>'+S.customers.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+"</option>"}).join("")+'</select><div id="pick"></div></div>';
+ return h+"<h2>Վերջին պատվերները</h2>"+ordersHTML(S.sales,true);
+}
+function setCust(v){orderCid=v;drawPick()}
+function drawPick(){
+ var el=$("pick");if(orderCid===null||orderCid==="__"){el.innerHTML="";return}
+ var c=cats(),h='<p style="color:var(--mute);margin:10px 0 0;font-size:14px">Բոլոր տեսակները ներքևում են․ նշեք քանակը ցանկացած ապրանքի համար։</p>';
+ Object.keys(c).forEach(function(k){h+='<h2>'+esc(k)+'</h2>'+c[k].map(function(p){return '<div class="item"><div>'+esc(p.name)+'<small>'+fmt(p.price)+' · պաշար՝ '+p.stock+'</small></div><input class="qty" type="number" min="0" max="'+p.stock+'" value="0" data-id="'+p.id+'" oninput="sumPick()" '+(p.stock?"":"disabled")+'></div>'}).join("")});
+ h+='<div class="item"><b id="pq">0 հատ</b><b class="amt" id="pt">0 ֏</b></div><div id="serr" class="low"></div><button style="width:100%;margin-top:8px" onclick="addOrder()">Գրանցել պատվերը</button>';
+ el.innerHTML=h;
+}
+function picks(){var r=[];document.querySelectorAll("#pick .qty").forEach(function(i){var q=Math.floor(+i.value);if(q>0)r.push({p:prod(i.getAttribute("data-id")),q:q})});return r}
+function sumPick(){var q=0,t=0;picks().forEach(function(x){q+=x.q;t+=x.q*x.p.price});$("pq").textContent=q+" հատ";$("pt").textContent=fmt(t)}
+function addOrder(){
+ var L=picks();if(!L.length){$("serr").textContent="Նշեք առնվազն մեկ ապրանքի քանակ։";return}
+ for(var i=0;i<L.length;i++)if(L[i].q>L[i].p.stock){$("serr").textContent=L[i].p.name+"՝ պաշարում կա միայն "+L[i].p.stock+" հատ։";return}
+ var c=S.customers.find(function(x){return x.id===orderCid}),oid=uid(),now=new Date().toISOString();
+ L.slice().reverse().forEach(function(x){x.p.stock-=x.q;S.sales.unshift({id:uid(),oid:oid,date:now,pid:x.p.id,name:x.p.name,qty:x.q,price:x.p.price,cid:orderCid,cname:c?c.name:""})});
+ save();render();
+}
+function delOrder(id){
+ if(!confirm("Ջնջե՞լ պատվերը։ Ապրանքները կվերադարձվեն պաշար։"))return;
+ S.sales.forEach(function(s){if((s.oid||s.id)===id){var p=prod(s.pid);if(p)p.stock+=s.qty}});
+ S.sales=S.sales.filter(function(s){return(s.oid||s.id)!==id});save();render();
+}
+function vCust(){
+ var h='<h1>Հաճախորդներ</h1><div class="card"><div class="row"><div><label>Անուն</label><input id="cn"></div><div><label>Հեռախոս</label><input id="cp" type="tel"></div></div><button style="margin-top:8px;width:100%" onclick="addCust()">Ավելացնել հաճախորդ</button></div>';
+ if(!S.customers.length)return h+'<div class="empty">Հաճախորդների բազան դատարկ է։</div>';
+ return h+S.customers.map(function(c){
+  var mine=S.sales.filter(function(s){return s.cid===c.id}),n=groupOrders(mine).length,q=0,t=0;
+  mine.forEach(function(s){q+=s.qty;t+=s.qty*s.price});
+  return '<details class="card"><summary><span>'+esc(c.name)+'<small>'+esc(c.phone||"Հեռախոսը նշված չէ")+" · պատվերներ՝ "+n+" · "+q+' հատ</small></span><span class="amt">'+fmt(t)+'</span></summary>'
+  +(n?ordersHTML(mine,false):'<div class="empty">Պատվերներ դեռ չկան։</div>')+'<button class="ghost" onclick="delCust(\''+c.id+'\')">Ջնջել հաճախորդին</button></details>'}).join("");
+}
+function addCust(){var n=$("cn").value.trim();if(!n){$("cn").focus();return}S.customers.push({id:uid(),name:n,phone:$("cp").value.trim()});save();render()}
+function delCust(id){if(!confirm("Ջնջե՞լ հաճախորդին։"))return;S.customers=S.customers.filter(function(c){return c.id!==id});save();render()}
+function vStock(){
+ var h='<h1>Ապրանքների պաշար</h1><div class="card"><div class="row"><div><label>Անվանում</label><input id="pn"></div><div><label>Տեսակ</label><input id="pc" list="cl" placeholder="Ընդհանուր"><datalist id="cl">'+Object.keys(cats()).map(function(k){return '<option value="'+esc(k)+'">'}).join("")+'</datalist></div></div><div class="row" style="margin-top:8px"><div><label>Գին (֏)</label><input id="pp" type="number" min="0"></div><div><label>Քանակ</label><input id="ps" type="number" min="0" value="0"></div></div><button style="margin-top:8px;width:100%" onclick="addProd()">Ավելացնել ապրանք</button></div>';
+ if(!S.products.length)return h+'<div class="empty">Ապրանքներ դեռ չկան։</div>';
+ var c=cats();
+ Object.keys(c).forEach(function(k){h+='<h2>'+esc(k)+'</h2><div class="card">'+c[k].map(function(p){
+  return '<div class="item"><div>'+esc(p.name)+"<small>"+fmt(p.price)+' · <span class="'+(p.stock<=3?"low":"")+'">'+p.stock+" հատ"+(p.stock<=3?" (քիչ է)":"")+'</span></small></div><div><button class="ghost" onclick="restock(\''+p.id+'\')">+ Համալրել</button> <button class="ghost" onclick="delProd(\''+p.id+'\')">Ջնջել</button></div></div>'}).join("")+"</div>"});
+ return h;
+}
+function addProd(){var n=$("pn").value.trim(),pr=+$("pp").value,st=Math.floor(+$("ps").value)||0;if(!n||$("pp").value===""||!(pr>=0)){$("pn").focus();return}S.products.push({id:uid(),name:n,cat:$("pc").value.trim()||"Ընդհանուր",price:pr,stock:st});save();render()}
+function restock(id){var v=prompt("Քանի՞ հատ ավելացնել պաշարին։","10"),n=Math.floor(+v);if(v&&n>0){prod(id).stock+=n;save();render()}}
+function delProd(id){if(!confirm("Ջնջե՞լ ապրանքը։"))return;S.products=S.products.filter(function(p){return p.id!==id});save();render()}
+function vReport(){
+ var now=new Date(),tk=dkey(now),mk=tk.slice(0,7),day=0,mon=0,all=0,by={},top={};
+ S.sales.forEach(function(s){var a=s.qty*s.price,k=dkey(s.date);all+=a;if(k===tk)day+=a;if(k.slice(0,7)===mk)mon+=a;by[k]=(by[k]||0)+a;top[s.name]=(top[s.name]||0)+a});
+ var days=[],i,max=1;
+ for(i=6;i>=0;i--){var d=new Date(now);d.setDate(d.getDate()-i);var v=by[dkey(d)]||0;days.push([d,v]);if(v>max)max=v}
+ var svg='<svg viewBox="0 0 300 130" width="100%" role="img" aria-label="Վերջին 7 օրվա վաճառք">'+days.map(function(x,j){var h=Math.round(x[1]/max*90),X=j*43+8;return '<rect x="'+X+'" y="'+(100-h)+'" width="30" height="'+h+'" rx="4" fill="var(--bar)"/><text x="'+(X+15)+'" y="116" text-anchor="middle">'+dshow(x[0])+'</text>'+(x[1]?'<text x="'+(X+15)+'" y="'+(96-h)+'" text-anchor="middle">'+(x[1]>=1000?Math.round(x[1]/1000)+"k":x[1])+'</text>':"")}).join("")+"</svg>";
+ var tops=Object.keys(top).map(function(k){return[k,top[k]]}).sort(function(a,b){return b[1]-a[1]}).slice(0,5);
+ var stockVal=S.products.reduce(function(a,p){return a+p.price*p.stock},0);
+ return '<h1>Հաշվետվություն</h1><div class="stats"><div class="stat"><b>'+fmt(day)+'</b><span>Այսօր</span></div><div class="stat"><b>'+fmt(mon)+'</b><span>Այս ամիս</span></div><div class="stat"><b>'+fmt(all)+'</b><span>Ընդամենը</span></div></div>'
+ +'<h2>Վերջին 7 օրը (֏)</h2><div class="card scroll">'+svg+'</div>'
+ +'<h2>Ամենաշատ վաճառվածները</h2><div class="card">'+(tops.length?tops.map(function(t){return '<div class="item"><div>'+esc(t[0])+'</div><span class="amt">'+fmt(t[1])+"</span></div>"}).join(""):'<div class="empty">Տվյալներ դեռ չկան։</div>')+"</div>"
+ +'<div class="card"><div class="item"><div>Պաշարի արժեքը<small>'+S.products.length+' ապրանք, '+S.sales.length+' վաճառք</small></div><span class="amt">'+fmt(stockVal)+"</span></div></div>";
+}
+render();
+</script>
+</body>
+</html>
