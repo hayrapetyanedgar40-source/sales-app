@@ -47,6 +47,9 @@ nav button.on{color:var(--accent);font-weight:800;outline:0}
 pre{white-space:pre-wrap;font:14px/1.5 monospace;margin:0 0 12px}
 svg text{fill:var(--mute);font-size:9px}
 </style>
+<script src="capacitor.js"></script>
+<script src="filesystem.js"></script>
+<script src="share.js"></script>
 </head>
 <body>
 <main id="app"></main>
@@ -86,16 +89,22 @@ function render(){
 function openOv(h){$("ov").innerHTML='<div class="ov" onclick="if(event.target===this)closeOv()"><div>'+h+'</div></div>'}
 function closeOv(){$("ov").innerHTML=""}
 /* ---------- share / export ---------- */
-function plug(){return window.Capacitor&&window.Capacitor.Plugins}
+function native(){var C=window.Capacitor;return!!(C&&C.isNativePlatform&&C.isNativePlatform())}
+function plug(n){if(!native())return null;var m=n==="Filesystem"?window.capacitorFilesystem:window.capacitorShare;return m?m[n]:null}
 async function shareFile(name,text){
- var P=plug();
- try{if(P&&P.Filesystem&&P.Share){var r=await P.Filesystem.writeFile({path:name,data:text,directory:"CACHE",encoding:"utf8"});await P.Share.share({title:name,url:r.uri,dialogTitle:"Ուղարկել"});return}}
- catch(e){if(/cancel/i.test(String(e&&e.message||e)))return}
+ var FS=plug("Filesystem"),SH=plug("Share");
+ if(native()&&!(FS&&SH)){alert("Ուղարկման մոդուլը բեռնված չէ");return}
+ if(FS&&SH){
+  try{var r=await FS.writeFile({path:name,data:text,directory:"CACHE",encoding:"utf8"});await SH.share({title:name,url:r.uri,dialogTitle:"Ուղարկել"});return}
+  catch(e){var m=String(e&&e.message||e);if(/cancel/i.test(m))return;
+   if(confirm("Ֆայլով ուղարկել չհաջողվեց ("+m+")։ Ուղարկե՞լ որպես տեքստ։")){try{await SH.share({title:name,text:text})}catch(e2){}}
+   return}
+ }
  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/plain;charset=utf-8"}));a.download=name;document.body.appendChild(a);a.click();a.remove();
 }
 async function shareText(t){
- var P=plug();
- try{if(P&&P.Share){await P.Share.share({text:t});return}if(navigator.share){await navigator.share({text:t});return}}catch(e){return}
+ var SH=plug("Share");
+ try{if(SH){await SH.share({text:t});return}if(navigator.share){await navigator.share({text:t});return}}catch(e){return}
  try{await navigator.clipboard.writeText(t);alert("Պատճենվեց")}catch(e){}
 }
 function csvCell(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'}
